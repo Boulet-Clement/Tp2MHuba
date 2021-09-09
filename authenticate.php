@@ -1,34 +1,42 @@
 <?php
-
-
 if($_SERVER['REQUEST_METHOD'] == 'POST'){
-    /* Logique du code ici */
     session_start();
-    include('users.php');
+    require('bdd.php'); /* Fichier contenant nos identifiants à la base de données */
 
     if ( isset($_POST['login']) && isset($_POST['password']) )
     {
         $login = htmlentities($_POST['login']);
         $password = htmlentities($_POST['password']);
 
-        foreach($users as $user => $pwd) {
-            if(($user == $login) && ($pwd == $password)){
-                
-                $_SESSION['login']=$login;
-                /* Connexion réussie, on redirige vers le message de bienvenue */
-                header('Location: welcome.php');
-                exit;
-                /* Remarque : L'utilisation du exit n'est pas très propre, il serait mieux de trouver 
-                une autre solution plutot que le foreach */ 
-            }else if(($user == $login) && ($pwd != $password)){
-                $_SESSION['message']='Mot de passe incorrect';
-                /* On redirige vers signin.php si ce n'est pas les bons identifiants */
-               header('Location: signin.php');
-               exit;
-            }
+        try{
+            $pdo = new PDO("mysql:host=".HOST.";dbname=".DBNAME, USERNAME, PASSWORD);
+        }catch(PDOExeption $e){
+            print "Erreur :" . $e->getMessage(). "<br/>";
         }
-        $_SESSION['message']='identifiant incorrect';
-        header('Location: signin.php');
+
+        $verif_login=$pdo->prepare("SELECT * FROM users WHERE login=:user");
+        $verif_login->bindParam(":user",$login);
+        $verif_login->execute();
+        $result_login = $verif_login->fetch();
+        if($result_login!=null){
+            //Pas très propre le !=null, on pourrait recevoir 2 résultat si jamais 
+            //il y a deux login identiques et donc ça planterait
+            $verif_password=$pdo->prepare("SELECT * FROM users WHERE login=:user AND password=:pwd");
+            $verif_password->bindParam(":user",$login);
+            $verif_password->bindParam(":pwd",$password);
+            $verif_password->execute();
+            $result_password = $verif_password->fetch();
+            if($result_password!=null){ 
+                $_SESSION['login']=$result_password['login'];
+                header('Location: welcome.php');
+            }else{
+                $_SESSION['message']="Mot de passe incorrect";
+                header('Location: signin.php');
+            }
+        }else{
+            $_SESSION['message']="Login incorrect";
+            header('Location: signin.php');
+        }
     }else{
         /* On redirige vers signin.php si il manque un paramètre */
         header('Location: signin.php');
@@ -37,5 +45,4 @@ if($_SERVER['REQUEST_METHOD'] == 'POST'){
     /* On redirige vers signin.php si ce n'est pas la méthode POST */
     header('Location: signin.php');
 }
-
-exit;
+?>
